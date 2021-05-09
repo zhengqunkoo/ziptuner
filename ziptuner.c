@@ -1134,6 +1134,10 @@ void get_favs()
   int i,j, k, n;
   int item;
 
+  int namestrlen = 0;
+  int namestrlenlongest = 0;
+  char *namelongest;
+
   //printf("get favs\n");
   cmd = cmd_out;
   nowplaying = -1;
@@ -1170,9 +1174,14 @@ scanfavs:
   }
 
   // Total up length all station names found and allocate dialog cmd string.
-  for (k=j=0; j<n; j++)
-    k = k + 14 + strlen(names[j]);
+  for (k=j=0; j<n; j++) {
+    namestrlen = strlen(names[j]);
+    k = k + 14 + namestrlen;
+    if (namestrlen > namestrlenlongest)
+      namestrlenlongest = namestrlen;
+  }
   cmd = malloc(k + 512); // extra space for "dialog..."
+  namelongest = malloc(namestrlenlongest);
 
   //printf("After srch, dest[%d] = <%s>\n", j, destfile);
   
@@ -1211,7 +1220,7 @@ scanfavs:
     
     // Add all station names found to the dialog list.
     for (j=0; j<n; j++){
-      sprintf(cmd+strlen(cmd)," %d \"%s\"",j+1,names[j]);
+      sprintf(cmd+strlen(cmd)," \"%s\" \"\"",names[j]);
     }
     strcat(cmd, " 2>/tmp/ziptuner.tmp");
 
@@ -1233,9 +1242,19 @@ scanfavs:
     }
 
     // Need to get result and store it in previtem
+    buff[0] = 0;
     if (fp = fopen("/tmp/ziptuner.tmp", "r")) {
-      if (1 == fscanf(fp, "%d", &i)) {
-	//printf("item = %d\n",i);
+      while (fgets(buff, 255, fp) != NULL)
+      {}
+      strcpy(namelongest, buff); // Safe to copy name into longest name
+      if (strlen(namelongest)) {
+        for (j=0; j<n; j++) {
+          if (!strcmp(names[j], namelongest)) {
+            i = j+1;
+            //printf("item = %d\n",i);
+            break;
+          }
+        }
       }
       else continue;
       fclose(fp);
@@ -1281,6 +1300,9 @@ scanfavs:
       continue;
     }
   }
+
+  if (namelongest)
+    free(namelongest);
 
   clean_favs();
 }
