@@ -222,9 +222,9 @@ void get_int_ip() // Select random radio-browser server (recommended by API)
   
   int_connection=0;
   
-  if (0 != getaddrinfo(hbuf, NULL, NULL, &addr)) {
+  while (0 != getaddrinfo(hbuf, NULL, NULL, &addr)) {
     fprintf(stderr, "Error resolving hostname %s\n", hbuf);
-    exit(1);
+    sleep(15);
   }
   // Use current time as seed for rand.  Keep addr with biggest rand.
   srand(time(0)); 
@@ -1425,7 +1425,11 @@ int main(int argc, char **argv){
   FILE *fp;
   int i,j;
 
-  get_int_ip();  // Works on zipit, but not laptop, so just set connection=1.
+  pthread_t tid;
+  if (pthread_create(&tid, NULL, (void*)get_int_ip, NULL) != 0) {
+    fprintf(stderr, "Error pthread_create\n");
+    exit(1);
+  }
 
   parse_args(argc, argv);
 
@@ -1440,6 +1444,10 @@ int main(int argc, char **argv){
  retry:
   j=play?1:0; // Add an extra line to menu for favs, if play is available.
 #ifndef OLD_API
+  if (pthread_join(tid, NULL) != 0) {
+    fprintf(stderr, "Error pthread_join\n");
+    exit(1);
+  }
   sprintf(srch_url, "%s/json/stations/",srv);
 #else
   sprintf(srch_url, "http://www.radio-browser.info/webservice/json/stations/");
@@ -1536,6 +1544,10 @@ int main(int argc, char **argv){
     if (i == 6) {
 	strcpy(srch_str, "Countries");
 #ifndef OLD_API
+	if (pthread_join(tid, NULL) != 0) {
+		fprintf(stderr, "Error pthread_join\n");
+		exit(1);
+	}
 	sprintf(buff,"%s/json/countries",srv);
 #else
 	strcpy(buff,"http://www.radio-browser.info/webservice/json/countries");
@@ -1546,6 +1558,10 @@ int main(int argc, char **argv){
     else if (i == 7) {
 	strcpy(srch_str, "Languages");
 #ifndef OLD_API
+	if (pthread_join(tid, NULL) != 0) {
+		fprintf(stderr, "Error pthread_join\n");
+		exit(1);
+	}
 	sprintf(buff,"%s/json/languages",srv);
 #else
 	strcpy(buff,"http://www.radio-browser.info/webservice/json/languages");
@@ -1556,6 +1572,10 @@ int main(int argc, char **argv){
     else if (i == 8) {
 	strcpy(srch_str, "Tags");
 #ifndef OLD_API
+	if (pthread_join(tid, NULL) != 0) {
+		fprintf(stderr, "Error pthread_join\n");
+		exit(1);
+	}
 	sprintf(buff,"%s/json/tags",srv);
 #else
 	strcpy(buff,"http://www.radio-browser.info/webservice/json/tags");
@@ -1640,6 +1660,10 @@ int main(int argc, char **argv){
     int_connection=1; 
     //signal (SIGALRM, catch_alarm);
     if (int_connection) {
+      if (pthread_join(tid, NULL) != 0) {
+        fprintf(stderr, "Error pthread_join\n");
+        exit(1);
+      }
       if (!get_url(srch_url)) {
 	// I'm still not sure this really works, but give it a shot for now.
 	cmd = cmd_out;
