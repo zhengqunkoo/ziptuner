@@ -153,6 +153,7 @@ char ext[32] = ".m3u";
 
 FILE *fp;
 char buff[256];
+char prevbuff[256];
 
 char *play = NULL; // mpg123tty4
 char *stop = NULL; // killall mpg123; killall mplayer
@@ -1142,6 +1143,8 @@ void get_favs()
   cmd = cmd_out;
   nowplaying = -1;
 
+  int deleteconfirm = 0; // Need 2 clicks to delete.
+
 scanfavs:
   rerun = 1;
   i = 0;
@@ -1195,16 +1198,23 @@ scanfavs:
 
   //*****************************
   while (rerun) {
-    rerun = 0; // Only rerun if we hit play or stop.
+    rerun = 0; // Only rerun if we hit play or stop or delete.
     
-    term_resize();
-    sprintf(cmd, "dialog --default-item % 10d ", previtem);
+    //term_resize();
+    sprintf(cmd, "dialog --default-item \"%s\" ", prevbuff); // prevbuff to deleteconfirm
+    if (deleteconfirm) {
+      sprintf(cmd+strlen(cmd), "--default-button Extra ");
+    }
     strcat(cmd, splash(SPLASH_MINH));
     sprintf(cmd+strlen(cmd),"--clear --title \"Pick a station\" ");
     sprintf(cmd+strlen(cmd),"--cancel-label \"Back\" ");
     if (play) {
       sprintf(cmd+strlen(cmd),"--ok-label \"Play\" ");
-      sprintf(cmd+strlen(cmd),"--extra-button --extra-label \"Delete\" ");
+      if (deleteconfirm == 0) {
+        sprintf(cmd+strlen(cmd),"--extra-button --extra-label \"Delete\" ");
+      } else {
+        sprintf(cmd+strlen(cmd),"--extra-button --extra-label \"Confirm\" ");
+      }
     }
     if (stop) { // Use Help button for Stop.
       sprintf(cmd+strlen(cmd),"--help-button --help-label \"Stop\" ");
@@ -1229,6 +1239,7 @@ scanfavs:
    
     //printf("choice = %d\n",choice);
     if (stop && (choice == 0x200)) { // 0x200=help button
+      deleteconfirm = 0;
       system ( stop ) ;
       //printf("\n\n%s\n",stop);exit(0);
       nowplaying = -1;
@@ -1236,6 +1247,7 @@ scanfavs:
       continue;
     }
     if (choice == 0x100) {
+      deleteconfirm = 0;
       //printf("quit\n");
       clean_favs();
       return;
@@ -1255,6 +1267,7 @@ scanfavs:
             break;
           }
         }
+        strcpy(prevbuff, buff);
       }
       else continue;
       fclose(fp);
@@ -1271,24 +1284,34 @@ scanfavs:
     }
 #endif
     
+    // Need 2 clicks to delete.
     if (choice == 0x300) { // Extra button means delete
-      if (lineN[i-1] == -1)
-	unlink(files[i-1]);
-      else{
-	del_fav_in_file(i-1);
+      if (deleteconfirm == 1) {
+        deleteconfirm = 0;
+        if (lineN[i-1] == -1) {
+          fprintf(stderr, "%s\n", files[i-1]);
+          unlink(files[i-1]);
+        } else{
+          del_fav_in_file(i-1);
+        }
+        clean_favs();
+        if (favnum == -i){ // Also delete autoplay favorite if same.
+          unlink("ziptuner.fav");
+          favnum = 0;
+        }
+        goto scanfavs;
+      } else {
+        deleteconfirm = 1;
+        rerun = 1;       // and redisplay the list in case we want to change it.
+        continue;
       }
-      clean_favs();
-      if (favnum == -i){ // Also delete autoplay favorite if same.
-	unlink("ziptuner.fav"); 
-	favnum = 0;
-      }
-      goto scanfavs;
     }
     
     previtem = i;
 
     /* If we hit play, play the playlist in the background and rerun the list. */
     if (play && (choice == 0)) {
+      deleteconfirm = 0;
       if (fp = fopen("ziptuner.fav", "w")) { // Remember this as the current fav 
 	fprintf(fp,"%d\n",i);                // rename() from /tmp fails on IZ2S
 	fclose(fp);
